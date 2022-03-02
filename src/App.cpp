@@ -1,26 +1,29 @@
 #include "App.hpp"
 
-App::App(){
+App::App()
+{
   Engine::Log("Object Made");
 }
-App::~App(){
+App::~App()
+{
   Engine::Log("Object Destroyed");
 }
 
-void App::Run(){
+void App::Run()
+{
   if (appState == AppState::ON)
     Engine::FatalError("App already running.");
-  
+
   Engine::Init();
 
   unsigned int windowFlags = 0;
 
-  //windowFlags |= Engine::WindowFlags::FULLSCREEN;
+  // windowFlags |= Engine::WindowFlags::FULLSCREEN;
 
-  //windowFlags |= Engine::WindowFlags::BORDERLESS;
-
+  // windowFlags |= Engine::WindowFlags::BORDERLESS;
+ 
   window.Create("Engine", 800, 600, windowFlags);
-  
+
   Load();
 
   appState = AppState::ON;
@@ -28,10 +31,78 @@ void App::Run(){
   Loop();
 }
 
-void App::Load(){}
+void App::Load()
+{
+  // build and compile our shader program
+  // ------------------------------------
+  shader.Compile("assets/shaders/4.2.texture.vs","assets/shaders/4.2.texture.fs");
+  shader.AddAttribute("ourColor");
+  shader.AddAttribute("aTexCoord");
+  shader.Link();
+  
+
+  // set up vertex data (and buffer(s)) and configure vertex attributes
+  // ------------------------------------------------------------------
+  float vertices[] = {
+      // positions        // color              // texture coords
+      
+     0.5f, 0.5f, 0.0f,    1.0f, 1.0f, 1.0f,     1.0f, 1.0f,  //top right
+     0.5f, -0.5f, 0.0f,   1.0f, 1.0f, 1.0f,     1.0f, 0.0f,  //bottom
+    -0.5f, -0.5f, 0.0f,   1.0f, 1.0f, 1.0f,     0.0f, 0.0f,  //bottom
+    -0.5f, 0.5f, 0.0f,    1.0f, 1.0f, 1.0f,     0.0f, 1.0f  //top left
+     
+  /*-0.5f, -0.5f, 0.0f,   1.0f, 0.0f, 0.0f, // left
+     0.5f, -0.5f, 0.0f,   0.0f, 1.0f, 0.0f, // right
+     0.0f, 0.5f, 0.0f,    0.0f, 0.0f, 1.0f, // top
+    -0.25f, 0.0f, 0.0f,   1.0f, 0.0f, 0.0f, // left mid
+     0.0f, -0.5f, 0.0f,   1.0f, 0.0f, 0.0f, // bottom center
+     0.25f, 0.0f, 0.0f,   1.0f, 0.0f, 0.0f  // right mid*/
+  };
+
+  // unsigned int VBO, VAO;
+  glGenVertexArrays(1, &VAO);
+  glGenBuffers(1, &VBO);
+  // bind the Vertex Array Object first, then bind and set vertex buffer(s), and then configure vertex attributes(s).
+  glBindVertexArray(VAO);
+
+  glBindBuffer(GL_ARRAY_BUFFER, VBO);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+  // position
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *)0);
+  glEnableVertexAttribArray(0);
+  // color
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void *)(3 * sizeof(float)));
+  glEnableVertexAttribArray(1);
+
+  
+  
+  
+  
+  //load texture 1
+  texture1 = Engine::LoadPNGToGLTexture("assets/textures/container.png", GL_RGBA, GL_RGBA);
+  //load texture 2
+  texture2 = Engine::LoadPNGToGLTexture("assets/textures/awesomeface.png", GL_RGBA, GL_RGBA);
+
+  // note that this is allowed, the call to glVertexAttribPointer registered VBO as the vertex attribute's bound vertex buffer object so afterwards we can safely unbind
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+  // You can unbind the VAO afterwards so other VAO calls won't accidentally modify this VAO, but this rarely happens. Modifying other
+  // VAOs requires a call to glBindVertexArray anyways so we generally don't unbind VAOs (nor VBOs) when it's not directly necessary.
+  glBindVertexArray(0);
+
+  glUnifromli(glGetUniformLocation(shader.GetProgramID(), "texture1"), 0);
+  glUnifromli(glGetUniformLocation(shader.GetProgramID(), "texture2"), 1);
+
+  // wireframe
+  //glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+  // fill
+  // glPolygonMode( GL_FRONT_AND_BACK, GL_FILL);
+}
+
 void App::Loop()
 {
-  while(appState == AppState::ON)
+  while (appState == AppState::ON)
   {
     Update();
     Draw();
@@ -42,10 +113,40 @@ void App::Loop()
     InputUpdate();
   }
 }
-void App::Update(){}
-void App::Draw(){}
-void App::LateUpdate(){}
-void App::FixedUpdate(float _delta_time){}
+void App::Update() {}
+void App::Draw()
+{
+  glClear(GL_COLOR_BUFFER_BIT);
+
+  //bind textures on cooresponding texture units
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, texture1.id);
+  glActiveTexture(GL_TEXTURE1);
+  glBindTexture(GL_TEXTURE_2D, texture2.id);
+
+  // be sure to activate the shader before any calls to glUniform
+  shader.Use();
+
+  // update shader uniform
+  //double  timeValue = SDL_GetTicks() / 1000;
+  //float greenValue = static_cast<float>(sin(timeValue) / 2.0 + 0.5);
+  //int vertexColorLocation = glGetUniformLocation(shaderProgram, "ourColor");
+  //glUniform4f(vertexColorLocation, 0.0f, greenValue, 0.0f, 1.0f);
+
+  // render the triangle
+  glBindVertexArray(VAO);
+  glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+  //for triangles
+  //glDrawArrays(GL_TRIANGLES, 0, 6);
+  //for regular lines
+  //glDrawArrays(GL_LINE_LOOP, 0, 6);
+  glBindVertexArray(0);
+
+  shader.UnUse();
+}
+
+void App::LateUpdate() {}
+void App::FixedUpdate(float _delta_time) {}
 void App::InputUpdate()
 {
   SDL_Event event;
