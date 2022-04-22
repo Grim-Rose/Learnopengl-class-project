@@ -2,6 +2,8 @@
 
 git clone --recursive https://github.com/Grim-Rose/Learnopengl-class-project.git
 
+git submodule update --init --recursive
+
 
 ## DEPENDENCES
 
